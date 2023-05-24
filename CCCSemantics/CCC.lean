@@ -1,11 +1,20 @@
-import Mathlib
 
 open CategoryTheory
 open Limits
 
+def withSnd [Category 𝒞] [Category 𝒟] [Category ℰ] (F : 𝒞 × 𝒟 ⥤ ℰ) (X : 𝒟) : 𝒞 ⥤ ℰ where
+  obj Y := F.obj (Y, X)
+  map f := F.map (f, 𝟙 X)
+  map_id Y := F.map_id (Y, X)
+  map_comp f g :=
+    have h : F.map ((f ≫ g, 𝟙 X) : (_, X) ⟶ (_, X)) = F.map ((f ≫ g, 𝟙 X ≫ 𝟙 X) : (_, X) ⟶ (_, X))
+      := congrArg _ (congrArg _ (Category.comp_id (𝟙 X)).symm)
+    h.trans (F.map_comp ((f, 𝟙 X) : (_, X) ⟶ (_, X)) ((g, 𝟙 X) : (_, X) ⟶ (_, X)))
+
 class CCC (Ob : Type u) extends Category Ob where
   one : Ob
-  isTerminal : IsTerminal one
+  bang : A ⟶ one
+  bang_uniq : f = bang 
 
   prod : Ob → Ob → Ob
   proj₁ : prod A B ⟶ A
@@ -88,7 +97,7 @@ lemma lam_uniq (f : prod A B ⟶ C) (g : A ⟶ exp B C) : bimap g (𝟙 _) ≫ e
   rw [←Category.comp_id proj₂]
   assumption
 
-theorem prodF : 𝒞 × 𝒞 ⥤ 𝒞 where
+def prodF : 𝒞 × 𝒞 ⥤ 𝒞 where
   obj P := prod P.1 P.2
   map f := bimap f.1 f.2
 
@@ -132,10 +141,38 @@ def dimap_comp (f₁ : A₁ ⟶ B₁) (g₁ : B₁ ⟶ C₁)
       bimap_comp]
   simp
 
-
-
-def expF : 𝒞ᵒᵖ × 𝒞 ⥤ 𝒞 where
-  obj P := exp P.1 P.2
-  map f := dimap f.1 f.2
+def expF : 𝒞 × 𝒞ᵒᵖ ⥤ 𝒞 where
+  obj P := exp P.2.unop P.1
+  map f := dimap f.2.unop f.1
   map_id _ := dimap_id
-  map_comp f g := dimap_comp g.1 f.1 f.2 g.2
+  map_comp f g := dimap_comp g.2.unop f.2.unop f.1 g.1
+
+@[simp]
+theorem lam_comp_dimap [CCC 𝒞] {A B C E : 𝒞} (f : prod A B ⟶ C) (g : C ⟶ E) : 
+  lam (f ≫ g) = lam f ≫ dimap (𝟙 B) g := by
+  simp [dimap]
+  rw [lam_comp, ←Category.assoc, lam_eval]
+
+def prod_exp_adj [CCC 𝒞] : withSnd prodF A ⊣ withSnd expF (Opposite.op A) :=
+  Adjunction.mkOfHomEquiv {
+    homEquiv := λ X Y => {
+      toFun := lam
+      invFun := λ f => bimap f (𝟙 _) ≫ eval
+      left_inv := by intro f; simp
+      right_inv := by intro f
+                      symm
+                      apply lam_uniq
+                      simp
+    }
+    homEquiv_naturality_left_symm := by
+      intro X Y Z f g
+      simp
+      rw [←Category.assoc]
+      congr
+      apply (withSnd prodF A).map_comp
+    homEquiv_naturality_right := by
+      intro X Y Z f g
+      simp [withSnd, expF]
+  }
+  
+
