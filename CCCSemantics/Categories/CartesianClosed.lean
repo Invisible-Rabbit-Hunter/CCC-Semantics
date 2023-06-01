@@ -2,15 +2,43 @@ import CCCSemantics.Categories.Adjunction
 
 namespace Categories
 
-structure product (𝒞 : Category) (A B : 𝒞) where
-  apex : 𝒞
+structure is_product (𝒞 : Category) (A B : 𝒞) (apex : 𝒞) where
   π₁ : apex ⟶ A
   π₂ : apex ⟶ B
-  universal : (f : X ⟶ A) → (g : X ⟶ B) →
-    {p : X ⟶ apex // f = π₁ ⊚ p ∧ g = π₂ ⊚ p }
+  universal : X ⟶ A → X ⟶ B → X ⟶ apex
+  universal_prop : (f : X ⟶ A) → (g : X ⟶ B) →
+    π₁ ⊚ universal f g = f ∧ π₂ ⊚ universal f g = g
   unique : ∀ (f : X ⟶ A) (g : X ⟶ B)
     (fg : X ⟶ apex), (f = π₁ ⊚ fg) → (g = π₂ ⊚ fg) →
-    fg = universal f g
+    universal f g = fg
+
+def is_product_unique.to (h₁ : is_product 𝒞 A B P₁) (h₂ : is_product 𝒞 A B P₂) :
+  P₁ ⟶ P₂ := h₂.universal h₁.π₁ h₁.π₂
+   
+def is_product_unique.inv (h₁ : is_product 𝒞 A B P₁) (h₂ : is_product 𝒞 A B P₂) :
+  is_product_unique.to h₂ h₁ ⊚ is_product_unique.to h₁ h₂ = 𝟙 P₁ := by
+  simp [inv, to]
+  apply Eq.trans
+  · apply Eq.symm
+    apply h₁.unique
+    · rw [←Category.assoc, (h₁.universal_prop _ _).1,
+          (h₂.universal_prop _ _).1]
+    · rw [←Category.assoc, (h₁.universal_prop _ _).2,
+          (h₂.universal_prop _ _).2]
+  · apply h₁.unique
+    · exact (Category.compose_id h₁.π₁).symm
+    · exact (Category.compose_id h₁.π₂).symm
+    
+structure product (𝒞 : Category) (A B : 𝒞) where
+  apex : 𝒞
+  is_product : is_product 𝒞 A B apex
+  -- π₁ : apex ⟶ A
+  -- π₂ : apex ⟶ B
+  -- universal : (f : X ⟶ A) → (g : X ⟶ B) →
+  --   {p : X ⟶ apex // f = π₁ ⊚ p ∧ g = π₂ ⊚ p }
+  -- unique : ∀ (f : X ⟶ A) (g : X ⟶ B)
+  --   (fg : X ⟶ apex), (f = π₁ ⊚ fg) → (g = π₂ ⊚ fg) →
+  --   fg = universal f g
 
 structure terminal (𝒞 : Category) where
   apex : 𝒞
@@ -21,23 +49,6 @@ class Cartesian (𝒞 : Category) where
   hasTerminal : terminal 𝒞
   hasProducts : ∀ A B, product 𝒞 A B
 
-instance : Cartesian Types where
-  hasTerminal := {
-    apex := PUnit
-    universal := λ _ => PUnit.unit 
-    unique := λ _ => rfl 
-  }
-  hasProducts A B := {
-    apex := A × B
-    π₁ := Prod.fst
-    π₂ := Prod.snd
-    universal := λ f g => ⟨λ x => (f x, g x), ⟨rfl, rfl⟩⟩ 
-    unique := λ _ _ _ h₁ h₂ => 
-      funext λ x =>
-      congrArg₂ (·,·) (congrFun h₁.symm x)
-                      (congrFun h₂.symm x)
-  }
-
 namespace Cartesian
 variable {𝒞} [Cartesian 𝒞]
 
@@ -45,26 +56,35 @@ def prod (A B : 𝒞):= (hasProducts A B).apex
 infixl:83 " ×' " => prod
 
 def pair (f : X ⟶ A) (g : X ⟶ B) : 𝒞[X, (hasProducts A B).apex] :=
-  (hasProducts A B).universal f g
+  (hasProducts A B).is_product.universal f g
 
-def proj₁ : 𝒞[(hasProducts A B).apex, A] := (hasProducts A B).π₁
-def proj₂ : 𝒞[(hasProducts A B).apex, B] := (hasProducts A B).π₂
+def proj₁ : 𝒞[(hasProducts A B).apex, A] := (hasProducts A B).is_product.π₁
+def proj₂ : 𝒞[(hasProducts A B).apex, B] := (hasProducts A B).is_product.π₂
 
 @[simp]
 theorem proj₁_pair (f : 𝒞[X, A]) (g : 𝒞[X, B]) : proj₁ ⊚ pair f g = f :=
-  ((hasProducts A B).universal f g).property.1.symm
+  ((hasProducts A B).is_product.universal_prop f g).1
 @[simp]
 theorem proj₂_pair (f : 𝒞[X, A]) (g : 𝒞[X, B]) : proj₂ ⊚ pair f g = g :=
-  ((hasProducts A B).universal f g).property.2.symm
+  ((hasProducts A B).is_product.universal_prop f g).2
 
 theorem pair_unique (f : 𝒞[X, A]) (g : 𝒞[X, B]) (fg : 𝒞[X, A ×' B])
   (h₁ : f = proj₁ ⊚ fg) (h₂ : g = proj₂ ⊚ fg)
-  : fg = pair f g := ((hasProducts A B).unique f g fg h₁ h₂)
+  : pair f g = fg := ((hasProducts A B).is_product.unique f g fg h₁ h₂)
+
+theorem pair_ext (f f' : 𝒞[X, A]) (g g' : 𝒞[X, B]) :
+  pair f g = pair f' g' ↔ (f = f' ∧  g = g') := by
+    constructor
+    · intro h
+      constructor
+      rw [←proj₁_pair f g, h, proj₁_pair]
+      rw [←proj₂_pair f g, h, proj₂_pair]
+    · intro h
+      rw [h.1, h.2]
 
 @[simp]
 theorem pair_comp (f : 𝒞[X, A]) (g : 𝒞[X, B]) (h : 𝒞[Y, X]) :
   pair (f ⊚ h) (g ⊚ h) = pair f g ⊚ h := by
-  apply Eq.symm
   apply pair_unique <;> {rw [←Category.assoc]; simp}
 
 def prod.map (f : A ⟶ A') (g : B ⟶ B') : prod (A : 𝒞) B ⟶ prod A' B' :=
@@ -73,7 +93,6 @@ def prod.map (f : A ⟶ A') (g : B ⟶ B') : prod (A : 𝒞) B ⟶ prod A' B' :=
 @[simp]
 def prod.map_id {A B : 𝒞} : prod.map (𝟙 A) (𝟙 B) = 𝟙 (A ×' B) := by
   simp [map]
-  apply Eq.symm
   apply pair_unique <;> simp
 
 @[simp]
@@ -82,7 +101,6 @@ def prod.map_comp {A A' A'' B B' B'': 𝒞}
   (f₂ : B' ⟶ B'') (g₂ : B ⟶ B') :
   prod.map (f₁ ⊚ g₁) (f₂ ⊚ g₂) = prod.map f₁ f₂ ⊚ prod.map g₁ g₂ := by
   simp [map]
-  apply Eq.symm
   apply pair_unique
   rw [←Category.assoc proj₁, proj₁_pair, Category.assoc, proj₁_pair]
   rw [←Category.assoc proj₂, proj₂_pair, Category.assoc, proj₂_pair]
@@ -105,19 +123,50 @@ def prodF [Cartesian 𝒞] : Prod 𝒞 𝒞 ⥤ 𝒞 where
 
 def final : 𝒞 := hasTerminal.apex
 def bang : 𝒞[X, final] := hasTerminal.universal
-def bang_unique (f : 𝒞[X, final]): f = bang := hasTerminal.unique f
+theorem bang_unique (f : 𝒞[X, final]): f = bang := hasTerminal.unique f
+
+@[simp]
+theorem pair_proj₁_proj₂ {A B : 𝒞}: pair proj₁ proj₂ = 𝟙 (A ×' B) := by
+  apply pair_unique
+  exact (Category.compose_id proj₁).symm
+  exact (Category.compose_id proj₂).symm
+
+theorem prod.map_comp_pair (f₁ : 𝒞[A, A']) (f₂ : 𝒞[B, B'])
+                           (g₁ : 𝒞[X, A])  (g₂ : 𝒞[X, B]) :
+  prod.map f₁ f₂ ⊚ pair g₁ g₂ = pair (f₁ ⊚ g₁) (f₂ ⊚ g₂) := by
+  simp [map, ←pair_comp]
 
 end Cartesian
 
 open Cartesian in
-structure exponential (𝒞 : Category) [Cartesian 𝒞] (A B : 𝒞) where
-  exp : 𝒞
+structure is_exponential (𝒞 : Category) [Cartesian 𝒞] (A B exp : 𝒞) where
   lam : X ×' A ⟶ B → X ⟶ exp
   eval : exp ×' A ⟶ B
   eval_lam (f : X ×' A ⟶ B):
     eval ⊚ Cartesian.prod.map (lam f) (𝟙 A) = f
   unique : ∀ (f : X ×' A ⟶ B) (f' : X ⟶ exp), (f = eval ⊚ prod.map f' (𝟙 A)) →
              f' = lam f
+
+def is_exponential_unique.to [Cartesian 𝒞] (h₁ : is_exponential 𝒞 A B E₁)
+                                           (h₂ : is_exponential 𝒞 A B E₂)
+    : E₁ ⟶ E₂ := h₂.lam h₁.eval
+
+def is_exponential_unique.inv [Cartesian 𝒞] (h₁ : is_exponential 𝒞 A B E₁)
+                                            (h₂ : is_exponential 𝒞 A B E₂)
+    : is_exponential_unique.to h₂ h₁ ⊚ is_exponential_unique.to h₁ h₂ = 𝟙 E₁ := by
+      simp [to]
+      apply Eq.symm
+      apply Eq.trans
+      · apply h₁.unique; simp; rfl
+      · apply Eq.symm
+        apply h₁.unique
+        simp [Cartesian.prod.map_comp_fst]
+        rw [←Category.assoc, h₁.eval_lam, h₂.eval_lam]
+
+open Cartesian in
+structure exponential (𝒞 : Category) [Cartesian 𝒞] (A B : 𝒞) where
+  exp : 𝒞
+  is_exponential : is_exponential 𝒞 A B exp
 
 class CartesianClosed (𝒞 : Category) extends Cartesian 𝒞 where
   closed : ∀ A B, exponential 𝒞 A B
@@ -134,15 +183,15 @@ open Cartesian
 
 def exp (A B : 𝒞) := (closed A B).exp
 
-def lam (f : 𝒞[X ×' A, B]) := (closed A B).lam f
-def eval : 𝒞[exp A B ×' A, B] := (closed A B).eval
+def lam (f : 𝒞[X ×' A, B]) := (closed A B).is_exponential.lam f
+def eval : 𝒞[exp A B ×' A, B] := (closed A B).is_exponential.eval
 
 @[simp]
 theorem eval_lam (f : 𝒞[X ×' A, B]) : eval ⊚ (prod.map (lam f) (𝟙 A)) = f :=
-  (closed A B).eval_lam f
+  (closed A B).is_exponential.eval_lam f
 theorem lam_unique (f : 𝒞[X ×' A, B]) (f' : 𝒞[X, exp A B])
   (h : f = eval ⊚ prod.map f' (𝟙 A)) : f' = lam f :=
-  (closed A B).unique f f' h
+  (closed A B).is_exponential.unique f f' h
 
 def exp.map (f : 𝒞[A', A]) (g : 𝒞[B, B']) :
   𝒞[exp A B, exp A' B'] :=
@@ -208,6 +257,44 @@ def HomProdAdj [CartesianClosed 𝒞] (X : 𝒞) :
     simp
   )
 
+def prod.lam_of_comp (f : 𝒞[X ×' A, B]) (g : 𝒞[Y, X]) :
+  lam (f ⊚ prod.map g (𝟙 _)) = lam f ⊚ g := by
+  apply Eq.symm
+  apply lam_unique
+  rw [prod.map_comp_fst, ←Category.assoc, eval_lam]
+
+def exp.map_comp_lam (f : 𝒞[B, C]) (g : 𝒞[X ×' A, B]) :
+  lam (f ⊚ g) = exp.map (𝟙 _) f ⊚ lam g := by
+    apply Eq.symm
+    apply lam_unique
+    simp [prod.map, map]
+    rw [←prod.lam_of_comp, prod.map_comp_fst, ←Category.assoc,
+        Category.assoc f, eval_lam, prod.lam_of_comp, ←Category.id_compose proj₂,
+        ←prod.map, eval_lam]
+
+theorem lam_injective (f g : 𝒞[X ×' A, B]) : lam f = lam g → f = g := by
+  intro hyp
+  rw [←eval_lam f, hyp, eval_lam]
+
+def eval_pair_lam (f : 𝒞[X ×' A, B]) (g : 𝒞[X, A]) :
+  eval ⊚ pair (lam f) g = f ⊚ pair (𝟙 X) g := by
+  rw [←eval_lam f, Category.assoc, prod.map, ←pair_comp,
+      Category.assoc, Category.assoc, proj₁_pair, proj₂_pair,
+      ←prod.map, eval_lam, Category.compose_id, Category.id_compose]
 end CartesianClosed
+
+open Cartesian CartesianClosed in
+structure CCFunctor (𝒞) [CartesianClosed 𝒞] (𝒟) [CartesianClosed 𝒟] extends Functor 𝒞 𝒟 where
+  preserve_terminal : IsIso (bang : toFunctor final ⟶ final)
+
+  preserve_products (A B : 𝒞) :
+                      IsIso (pair (toFunctor.map (proj₁ (A := A) (B := B)))
+                                  (toFunctor.map (proj₂ (A := A) (B := B))))
+
+  preserve_exponential (A B : 𝒞) :
+                      IsIso (A := toFunctor (exp A B))
+                            (B := exp (toFunctor A) (toFunctor B))
+                            (lam (toFunctor.map (eval (A := A)) ⊚
+                                  (preserve_products _ _).inv))
 
 end Categories

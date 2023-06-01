@@ -1,65 +1,61 @@
 import CCCSemantics.Lambda.Renaming
 
+open Categories
+
 section
-variable (σ : Sig)
+inductive Tm {σ : Sig} : Ctx σ → Ty σ.types → Type _
+| var : Var τ Γ → Tm Γ τ
+| base (t : σ.terms) : Tm Γ (σ.typing t)
+| lam : Tm (Γ ,, τ) υ → Tm Γ (τ.arr υ)
+| app : Tm Γ (τ.arr υ) → Tm Γ τ → Tm Γ υ
+| unit : Tm Γ Ty.unit
+| pair : Tm Γ τ → Tm Γ υ → Tm Γ (τ.prod υ)
+| fst : Tm Γ (τ.prod υ) → Tm Γ τ
+| snd : Tm Γ (Ty.prod τ υ) → Tm Γ υ 
 
-inductive Tm (σ : Sig) : Ctx σ → Ty σ.types → Type _
-| var : Var τ Γ → Tm σ Γ τ
-| base (t : σ.terms) : Tm σ Γ (σ.typing t)
-| lam : Tm σ (Γ ,, τ) υ → Tm σ Γ (τ.arr υ)
-| app : Tm σ Γ (τ.arr υ) → Tm σ Γ τ → Tm σ Γ υ
-| unit : Tm σ Γ Ty.unit
-| pair : Tm σ Γ τ → Tm σ Γ υ → Tm σ Γ (τ.prod υ)
-| fst : Tm σ Γ (τ.prod υ) → Tm σ Γ τ
-| snd : Tm σ Γ (Ty.prod τ υ) → Tm σ Γ υ 
-
-notation Γ " ⊢ " τ:80 => Tm _ Γ τ
+notation Γ " ⊢ " τ:80 => Tm Γ τ
 
 end
 
-namespace Renaming
-def apply : Renaming Γ Δ → Δ ⊢ τ → Γ ⊢ τ
-| e, .var v    => .var (var e v)
-| _, .base b   => .base b
-| e, .lam t    => .lam (apply (.keep e) t)
-| e, .app t u  => .app (apply e t) (apply e u)
-| e, .pair t u => .pair (e.apply t) (e.apply u)
-| e, .fst t    => .fst (e.apply t)
-| e, .snd t    => .snd (e.apply t)
-| e, .unit     => .unit
+namespace Tm
+def rename : Δ ⊢ τ → Renaming Γ Δ → Γ ⊢ τ
+| .var v,    e => .var (v.rename e)
+| .base b,   _ => .base b
+| .lam t,    e => .lam (t.rename (e.keep _))
+| .app t u,  e => .app (t.rename e) (u.rename e)
+| .pair t u, e => .pair (t.rename e) (u.rename e)
+| .fst t,    e => .fst (t.rename e)
+| .snd t,    e => .snd (t.rename e)
+| .unit,     e => .unit
 
 @[simp]
-theorem apply_ide : ∀ t : Γ ⊢ τ, apply (ide Γ) t = t
-| .var v => congrArg Tm.var (var_ide v)
+theorem rename_ide : ∀ t : Γ ⊢ τ, t.rename (Renaming.ide Γ) = t
+| .var v => congrArg Tm.var v.rename_ide
 | .base b => rfl
-| .lam t => congrArg Tm.lam (apply_ide _)
-| .app t u => congrArg₂ Tm.app (apply_ide t) (apply_ide u)
-| .pair t u => congrArg₂ Tm.pair (apply_ide t) (apply_ide u)
-| .fst t    => congrArg Tm.fst (apply_ide t)
-| .snd t    => congrArg Tm.snd (apply_ide t)
+| .lam t => congrArg Tm.lam t.rename_ide
+| .app t u => congrArg₂ Tm.app t.rename_ide u.rename_ide
+| .pair t u => congrArg₂ Tm.pair t.rename_ide u.rename_ide
+| .fst t    => congrArg Tm.fst t.rename_ide
+| .snd t    => congrArg Tm.snd t.rename_ide
 | .unit     => rfl
 
-theorem var_trans : ∀ (e₁ : Renaming Γ Δ) (e₂ : Renaming Δ Ε) (t : Var τ Ε),
-  var (trans e₁ e₂) t = var e₁ (var e₂ t)
-| done, e₂, n => nomatch var e₂ n
-| keep e₁, .keep e₂, v⟨0⟩ => rfl
-| keep e₁, .keep e₂, v⟨n+1⟩ => congrArg Var.succ (var_trans e₁ e₂ n)
-| keep e₁, .skip e₂, n => congrArg Var.succ (var_trans e₁ e₂ n)
-| skip e₁, e₂, n => congrArg Var.succ (var_trans e₁ e₂ n)
-
 @[simp]
-theorem apply_trans : ∀ (e₁ : Renaming Γ Δ) (e₂ : Renaming Δ Ε) (t : Ε ⊢ τ),
-  apply (trans e₁ e₂) t = apply e₁ (apply e₂ t)
-| e₁, e₂, .var v => congrArg Tm.var (var_trans e₁ e₂ v)
-| _,  _,  .base b => rfl
-| e₁, e₂, .lam t => congrArg Tm.lam (apply_trans e₁.keep e₂.keep t)
-| e₁, e₂, .app t u => congrArg₂ Tm.app (apply_trans e₁ e₂ t)
-                                       (apply_trans e₁ e₂ u)
-| e₁, e₂, .pair t u => congrArg₂ Tm.pair (apply_trans e₁ e₂ t)
-                                         (apply_trans e₁ e₂ u)
-| e₁, e₂, .fst t => congrArg Tm.fst (apply_trans e₁ e₂ t)
-| e₁, e₂, .snd t => congrArg Tm.snd (apply_trans e₁ e₂ t)
-| _,  _,  .unit => rfl
+theorem rename_comp :
+  ∀ (t : Ε ⊢ τ) (e₁ : Renaming Δ Ε) (e₂ : Renaming Γ Δ),
+  t.rename (e₁.comp e₂) = (t.rename e₁).rename e₂
+| .var v ,    e₁, e₂ => congrArg Tm.var (v.rename_comp e₁ e₂)
+| .base _,    _,  _  => rfl
+| .lam t ,    e₁, e₂ => congrArg (Tm.lam ·) ((congrArg t.rename
+                                                       (Renaming.keep_comp_keep e₁
+                                                                                e₂
+                                                        ).symm).trans
+                                             (rename_comp t (e₁.keep _) (e₂.keep _)))
+| .app t u,   e₁, e₂ => congrArg₂ Tm.app (t.rename_comp e₁ e₂)
+                                         (u.rename_comp e₁ e₂)
+| .pair t u , e₁, e₂ => congrArg₂ Tm.pair (t.rename_comp e₁ e₂)
+                                          (u.rename_comp e₁ e₂)
+| .fst t,     e₁, e₂ => congrArg Tm.fst (t.rename_comp e₁ e₂)
+| .snd t,     e₁, e₂ => congrArg Tm.snd (t.rename_comp e₁ e₂)
+| .unit,      _,  _  => rfl
 
-theorem apply_done : ∀ t : ε ⊢ τ, apply done t = t := apply_ide
-end Renaming
+end Tm

@@ -24,17 +24,19 @@ abbrev identity {𝒞 : Category} (A : 𝒞) := 𝒞.id A
 abbrev compose {𝒞 : Category} {A B C : 𝒞} (f : 𝒞[B, C]) (g : 𝒞[A, B]) := 𝒞.comp f g
 
 notation "𝟙" => identity
+notation "𝟙[" 𝒞 "]" => Category.id 𝒞
+notation f:71 " ⊚[" 𝒞 "] " g:70  => Category.comp 𝒞 f g
 infixl:70 " ⊚ " => compose
 infixr:80 " ⟶ " => hom
 
 unif_hint (𝒞 : Category) (A B : 𝒞) where
-  ⊢ hom A B ≟ 𝒞.Hom A B
+  ⊢ 𝒞.Hom A B ≟ A ⟶ B
 
 unif_hint (𝒞 : Category) (A : 𝒞) where
-  ⊢ identity A ≟ 𝒞.id A
+  ⊢ 𝒞.id A ≟ 𝟙 A
 
 unif_hint (𝒞 : Category) (A B C : 𝒞) (f : 𝒞[B, C]) (g : 𝒞[A, B]) where
-  ⊢ compose f g ≟ 𝒞.comp f g
+  ⊢ 𝒞.comp f g ≟ f ⊚ g
 
 @[simp]
 theorem assoc (f : C ⟶ D) (g : B ⟶ C) (h : A ⟶ B) : (f ⊚ g) ⊚ h = f ⊚ (g ⊚ h) :=
@@ -50,12 +52,15 @@ theorem id_compose (f : A ⟶ B) : 𝟙 B ⊚ f = f :=
 
 end Category
 
+structure IsIso {𝒞 : Category} {A B : 𝒞} (f : A ⟶ B) where
+  inv : B ⟶ A
+  leftInv : inv ⊚ f = 𝟙 A
+  rightInv : f ⊚ inv = 𝟙 B
+
 structure Iso (𝒞 : Category) (A B : 𝒞) where
   to : A ⟶ B
-  inv : B ⟶ A
-  leftInv : inv ⊚ to = 𝟙 A
-  rightInv : to ⊚ inv = 𝟙 B
-
+  to_isIso : IsIso to
+  
 structure Mono (𝒞 : Category) (A B : 𝒞) where
   to : A ⟶ B
   monic : ∀ (f g : X ⟶ A), to ⊚ f = to ⊚ g → f = g 
