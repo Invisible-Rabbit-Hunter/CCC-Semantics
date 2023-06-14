@@ -84,7 +84,8 @@ def exp (A B : 𝒞ᵒᵖ ⥤ Types.{u}) : 𝒞ᵒᵖ ⥤ Types.{u} where
       simp [yo, prod.map, pair, proj₁, proj₂, hasProducts]
       rw [←Types.comp_def (B.map _),
           ←F.naturality]
-      simp [yo, prod, hasProducts, prod.map, pair, proj₁, proj₂]
+      simp [yo, prod, hasProducts, prod.map, pair, proj₁, proj₂,
+            product.universal, product.π₁, product.π₂]
   }
   map_id := by
     intro (I : 𝒞)
@@ -105,7 +106,8 @@ def lam (F : X ×' A ⟹ B) : X ⟹ exp A B where
       simp
       rw [←Types.comp_def (B.map _),
           ←F.naturality]
-      simp [yo, prod, hasProducts, prod.map, pair, proj₁, proj₂]
+      simp [yo, prod, hasProducts, prod.map, pair, proj₁, proj₂,
+            product.universal, product.π₁, product.π₂]
       rw [X.map_comp, Types.comp_def]
   }
   naturality := by
@@ -123,7 +125,8 @@ def eval : exp A B ×' A ⟹ B where
     simp
     rw [←Types.comp_def (B.map _),
         ←P.1.naturality]
-    simp [exp, prod, hasProducts, prod.map, pair, proj₁, proj₂, yo]
+    simp [exp, prod, hasProducts, prod.map, pair, proj₁, proj₂, yo,
+          product.universal, product.π₁, product.π₂]
 
 def eval_lam (f : X ×' A ⟹ B) : eval ⊚ prod.map (lam f) (𝟙 A) = f := by
   apply NatTrans.ext
@@ -131,7 +134,7 @@ def eval_lam (f : X ×' A ⟹ B) : eval ⊚ prod.map (lam f) (𝟙 A) = f := by
   funext x
   simp [Category.compose, Func, NatTrans.comp, Types, eval,
         prod, prod.map, pair, hasProducts, proj₁, proj₂,
-        lam]
+        lam, product.universal, product.π₁, product.π₂]
   rw [X.map_id]
   simp [Category.identity, Types, NatTrans.id]
   rfl
@@ -152,7 +155,7 @@ def unique (F : X ×' A ⟹ B) (F' : X ⟹ exp A B) (hyp : F = eval ⊚ prod.map
   simp [Category.compose, Types, prod, hasProducts, prod.map,
         pair, proj₁, proj₂, eval, Func, NatTrans.comp] at hyp'
   rw [hyp']
-  simp
+  simp [product.universal, product.π₁, product.π₂]
   rw [←Types.comp_def (F'.app _), F'.naturality]
   simp [exp, Category.identity, NatTrans.id]
 

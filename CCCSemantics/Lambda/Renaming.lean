@@ -9,7 +9,6 @@ def Var.rename : Var τ Δ → Renaming Γ Δ → Var τ Γ
 | .zero,   .cons _ v => v 
 | .succ v, .cons r _ => v.rename r
 
-
 namespace Renaming
 
 def drop τ : Renaming Γ Δ → Renaming (Γ ,, τ) Δ

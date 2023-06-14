@@ -1,8 +1,9 @@
 
 def congrArg₂
   (f : α → β → γ) : x = x' → y = y' →
-  f x y = f x' y'
-| .refl _, .refl _ => rfl
+  f x y = f x' y' := by
+  intro h₁ h₂
+  rw [h₁, h₂]
 
 def Path {β : α → Sort v} (h : x = y) (a : β x) (b : β y) : Prop :=
   h ▸ a = b

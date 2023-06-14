@@ -52,7 +52,7 @@ instance (Γ Δ : Ctx σ) : Equivalence (SubEquiv Γ Δ) where
   refl := SubEquiv.refl
   symm := SubEquiv.symm
   trans := SubEquiv.trans
-  
+
 instance (Γ Δ : Ctx σ) : Setoid (Subst Γ Δ) where
   r := SubEquiv Γ Δ
   iseqv := instEquivalenceSubstSubEquiv Γ Δ 
@@ -133,24 +133,24 @@ theorem TmEquiv.subst_congr {t t' : Δ ⊢ τ} {s s' : Subst Γ Δ} :
   revert Γ
   induction r₁ <;> intro Γ s s' r₂
   case refl t => apply SubEquiv.tm_subst_congr r₂
-  case symm r₁ ih => apply TmEquiv.symm (ih (Setoid.symm r₂))
+  case symm _ ih => apply TmEquiv.symm (ih (Setoid.symm r₂))
   case trans _ _ _ ih₁ ih₂ => apply TmEquiv.trans (ih₁ r₂) (ih₂ (Setoid.refl _))
-  case app_congr r₁₁ r₁₂ ih₁ ih₂ =>
+  case app_congr _ _ ih₁ ih₂ =>
     apply TmEquiv.app_congr
     · apply ih₁ r₂
     · apply ih₂ r₂
-  case lam_congr r₁ ih =>
+  case lam_congr _ ih =>
     apply TmEquiv.lam_congr
     apply ih
     apply SubEquiv.keep_congr r₂
-  case pair_congr r₁₁ r₁₂ ih₁ ih₂ =>
+  case pair_congr _ _ ih₁ ih₂ =>
     apply TmEquiv.pair_congr
     · apply ih₁ r₂
     · apply ih₂ r₂
-  case fst_congr r₁ ih => 
+  case fst_congr _ ih => 
     apply TmEquiv.fst_congr
     apply ih r₂
-  case snd_congr r₁ ih => 
+  case snd_congr _ ih => 
     apply TmEquiv.snd_congr
     apply ih r₂
   case arr_β => simp [Tm.subst]
@@ -199,3 +199,211 @@ theorem SubEquiv.pair_congr {s₁ s₁' : Subst X Γ} {s₂ s₂' : Subst X Δ} 
   | cons e₂ eₜ ih =>
     simp [Subst.pair]
     apply cons ih eₜ
+
+theorem TmEquiv.lam'_congr {s s' : (X ++ Γ) ⊢ τ} :
+  s ≈ s' → (Subst.lam' s) ≈ (Subst.lam' s') := by
+  revert τ
+  induction Γ with
+  | nil => intro τ s s' e; exact e
+  | cons Γ τ ih => intro τ s s' e; exact ih (TmEquiv.lam_congr e)
+    
+theorem SubEquiv.lam_congr {s s' : Subst (X ++ Γ) Δ} :
+  s ≈ s' → s.lam ≈ s'.lam := by
+  intro e
+  induction e with
+  | nil => apply Setoid.refl
+  | cons eₛ eₜ ih => simp [Subst.lam]; apply SubEquiv.cons ih (TmEquiv.lam'_congr eₜ)
+
+@[simp]
+theorem pow_nil : Δ ^ ε = Δ := by
+  induction Δ with
+  | nil => rfl
+  | cons Δ τ ih => simp [Subst.arr, ih]
+
+@[simp]
+theorem pair_drop {f : Subst X Γ} {g : Subst X Δ}: (f.drop τ).pair (g.drop τ) = (f.pair g).drop τ := by
+  induction g with
+  | nil => rfl
+  | cons g t ih => simp [Subst.drop, ih]
+
+theorem TmEquiv.app_lam' {f : (X ++ Γ) ⊢ Δ} {x : Subst X Γ} :
+  Subst.app (Subst.lam' f) x ≈ f.subst ((Subst.ide _).pair x) := by
+  revert Δ
+  induction x with
+  | nil => intro Δ f; simp; apply TmEquiv.refl
+  | cons xs x ih =>
+      intro Δ f
+      simp [Subst.lam', Subst.app, Subst.apps, Subst.comp]
+      apply TmEquiv.trans
+      · apply TmEquiv.app_congr
+        · apply ih
+        · apply TmEquiv.refl
+      · apply TmEquiv.trans
+        · apply TmEquiv.arr_β
+        · rw [←Tm.subst_comp]
+          simp [Subst.keep, Subst.comp, Subst.drop_comp, Subst.head, Tm.subst, Var.subst,
+                Subst.comp_ide]
+          apply TmEquiv.refl
+
+theorem SubEquiv.apps_lam {f : Subst (X ++ Γ) Δ} {x : Subst X Γ} :
+  Subst.apps (Subst.lam f) x ≈ f.comp ((Subst.ide _).pair x) := by
+  induction f with
+  | nil => apply Setoid.refl
+  | cons fs f ih =>
+      simp [Subst.lam, Subst.apps, Subst.comp]
+      constructor
+      · assumption
+      · apply TmEquiv.app_lam'
+
+theorem Subst.app_subst {f : X ⊢ arr Γ τ} {x : Subst X Γ} {g : Subst Y X} :
+  (Subst.app f x).subst g = Subst.app (f.subst g) (x.comp g) := by
+  revert τ
+  induction x with
+  | nil => intro τ f; rfl
+  | cons xs x ih =>
+    intro τ f
+    simp [Subst.arr, Subst.app, Subst.comp, Tm.subst]
+    apply ih
+
+theorem Subst.apps_comp {f : Subst X (Δ^Γ)} {x : Subst X Γ} {g : Subst Y X} :
+  (Subst.apps f x).comp g = Subst.apps (f.comp g) (x.comp g) := by
+  induction Δ with
+  | nil => rfl
+  | cons Δ τ ih =>
+    cases f with | cons fs f =>
+    simp [Subst.apps, Subst.comp]
+    constructor
+    · apply ih
+    · apply Subst.app_subst
+
+theorem Subst.lam'_subst {f : (X ++ Γ) ⊢ τ} {g : Subst Y X} :
+  (Subst.lam' f).subst g = lam' (f.subst (g.par (Subst.ide _))) := by
+  revert τ
+  induction Γ with
+  | nil => intro τ f; simp [lam', par, pair, comp_ide]
+  | cons Γ υ ih =>
+    intro τ f
+    simp [Subst.lam', Subst.comp, Subst.par, ih, Tm.subst]
+    apply congrArg lam'
+    apply congrArg Tm.lam
+    simp [keep,ide_comp, ofRenaming_drop, drop_comp, head, comp_drop, Var.subst]
+    rw [←ide, ide_comp]
+
+theorem Subst.lam_comp {f : Subst (X ++ Γ) Δ} {g : Subst Y X} :
+  (Subst.lam f).comp g = lam (f.comp (g.par (Subst.ide _))) := by
+  induction f with
+  | nil => rfl
+  | cons fs f ih =>
+    simp [Subst.apps, Subst.comp, Subst.lam]
+    apply congrArg₂ cons
+    · apply ih
+    · simp [Subst.lam'_subst]
+
+theorem Subst.par_comp_pair : (Subst.par a b).comp (Subst.pair c d) =
+                              Subst.pair (a.comp c) (b.comp d) := by
+  simp [Subst.par]
+  induction b with
+  | nil => simp [Subst.comp, Subst.comp_assoc, proj₁_pair]
+  | cons bₛ bₜ ih =>
+    simp [comp, pair]
+    constructor
+    · apply ih
+    · rw [←Tm.subst_comp, proj₂_pair]
+
+theorem Subst.pair_proj₁_proj₂ : Subst.pair (Subst.proj₁ (Γ := Γ) (Δ := Δ)) Subst.proj₂ =
+  Subst.ide (Γ ++ Δ) := (Subst.pair_unique (Subst.comp_ide _)
+                                           (Subst.comp_ide _))
+
+theorem SubEquiv.eval_lam {s : Subst (X ++ Γ) Δ} :
+  Subst.eval.comp (s.lam.par (Subst.ide Γ)) ≈ s := by
+  simp [Subst.eval, Subst.par]
+  rw [Subst.apps_comp, Subst.proj₁_pair, Subst.proj₂_pair]
+  rw [Subst.ide_comp, Subst.lam_comp]
+  induction s with
+  | nil => apply Setoid.refl
+  | cons s t ih =>
+      simp [Subst.lam, Subst.comp, Subst.apps]
+      constructor
+      · apply ih
+      · apply TmEquiv.trans
+        apply TmEquiv.app_lam'
+        rw [←Tm.subst_comp, Subst.par_comp_pair, Subst.comp_ide, Subst.ide_comp,
+            Subst.pair_proj₁_proj₂, Tm.subst_ide]
+        apply TmEquiv.refl
+    
+theorem TmEquiv.big_arr_η {f : X ⊢ Subst.arr Γ τ}:
+  f ≈ Subst.lam' (Subst.app (f.subst Subst.proj₁) (Subst.proj₂)) := by
+  revert τ
+  induction Γ with
+  | nil => intro τ f
+           simp [Subst.lam', Subst.app]
+           apply TmEquiv.refl
+  | cons Γ υ ih =>
+    intro τ f
+    simp [Subst.lam', Subst.app]
+    apply TmEquiv.trans
+    · apply ih
+    · rw [←Tm.subst_weaken, Subst.weaken_drop, Subst.weaken_ide]
+      simp [Subst.arr] at f
+      apply lam'_congr (X := X) (Γ := Γ)
+      apply TmEquiv.trans
+      apply TmEquiv.arr_η
+      simp
+      rw [←Tm.subst_weaken, Subst.weaken_drop, Subst.weaken_ide]
+      apply TmEquiv.lam_congr
+      simp [Subst.app, Subst.keep]
+      rw [←Tm.subst_weaken, Subst.weaken_drop, Subst.weaken_ide,
+         ←Tm.subst_renaming, Subst.app_subst, ←Tm.subst_comp,
+         ←Subst.weaken_eq_comp_ofRenaming, Subst.weaken_drop,
+         Subst.weaken_ide, ←Subst.weaken_eq_comp_ofRenaming,
+         Subst.weaken_drop, Subst.weaken_ide]
+      apply TmEquiv.refl
+
+theorem TmEquiv.lam'_unique {f : (X ++ Γ) ⊢ τ} {f' : X ⊢ Subst.arr Γ τ}
+  (h : f ≈ Subst.app (Tm.subst f' Subst.proj₁) Subst.proj₂) :
+  f' ≈ Subst.lam' f := by
+  apply TmEquiv.trans
+  apply TmEquiv.big_arr_η
+  apply TmEquiv.lam'_congr
+  apply Setoid.symm
+  assumption
+
+theorem SubEquiv.lam_unique {f : Subst (X ++ Γ) Δ} {f' : Subst X (Δ^Γ)}
+  (h : f ≈ Subst.apps (f'.comp Subst.proj₁) Subst.proj₂) :
+  f' ≈ Subst.lam f := by
+  induction Δ with
+  | nil => cases f'; apply SubEquiv.nil
+  | cons Δ τ ih =>
+    cases f with | cons fs f =>
+    cases f' with | cons f's f' =>
+    cases h with | cons hₛ hₜ =>
+    simp [Subst.lam]
+    apply SubEquiv.cons
+    · apply ih
+      exact hₛ
+    · apply TmEquiv.lam'_unique hₜ
+
+theorem SubEquiv.app_congr {s₁ s₁' : Γ ⊢ Subst.arr Δ τ} {s₂ s₂' : Subst Γ Δ} : s₁ ≈ s₁' → s₂ ≈ s₂' → Subst.app s₁ s₂ ≈ Subst.app s₁' s₂' := by
+  intro e₁ e₂
+  revert τ
+  induction e₂ with
+  | nil => intro τ s₁ s₂ e₁; exact e₁
+  | cons _ e₂ₜ ih =>
+    intro τ s₁ s₂ e₁
+    simp [Subst.app]
+    apply TmEquiv.app_congr
+    · apply ih e₁
+    · assumption
+      
+theorem SubEquiv.apps_congr {s₁ s₁' : Subst Γ (Subst.exp Δ Ε)} {s₂ s₂' : Subst Γ Δ} : s₁ ≈ s₁' → s₂ ≈ s₂' → Subst.apps s₁ s₂ ≈ Subst.apps s₁' s₂' := by
+  intro e₁ e₂
+  induction Ε with
+  | nil => apply SubEquiv.nil; 
+  | cons Ε τ ih =>
+    cases e₁ with | cons e₁ₛ e₁ₜ =>
+    apply SubEquiv.cons
+    · apply ih e₁ₛ
+    · apply SubEquiv.app_congr
+      · apply e₁ₜ
+      · apply e₂
+    

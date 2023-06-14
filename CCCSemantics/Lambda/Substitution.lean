@@ -324,7 +324,7 @@ section
 variable {σ : Sig}
 
 def pair : ∀ {Γ Δ Ε : Ctx σ}, Subst (Γ) (Δ) → Subst (Γ) (Ε) → Subst (Γ) (Δ ++ Ε)
-| Γ, Δ, ε,      s₁, s₂        => s₁
+| _, _, ε,      s₁, _        => s₁
 | Γ, Δ, Ε ,, τ, s₁, cons s₂ t => cons (pair s₁ s₂)  t
 
 def proj₁ : ∀ {Γ Δ : Ctx σ}, Subst (Γ ++ Δ) (Γ)
@@ -360,7 +360,7 @@ theorem cons_proj₂ {Γ Δ : Ctx σ} : proj₂ (Γ:= Γ) (Δ := Δ ,, τ) =
 
 
 def par : ∀ {Γ Δ Γ' Δ' : Ctx σ}, Subst Γ Δ → Subst Γ' Δ' → Subst (Γ ++ Γ') (Δ ++ Δ')
-| Γ, Δ, Γ', Δ', s₁, s₂ => pair (s₁.comp proj₁) (s₂.comp proj₂)
+| _, _, _, _, s₁, s₂ => pair (s₁.comp proj₁) (s₂.comp proj₂)
 
 def app : ∀ {Γ Δ : Ctx σ}, Γ ⊢ arr Δ τ → Subst (Γ) (Δ) → Γ ⊢ τ
 | _, ε,      f, .nil      => f
@@ -382,4 +382,32 @@ def lam : ∀ {Γ Δ Ε : Ctx σ}, Subst (Γ ++ Δ) (Ε) → Subst (Γ) (exp Δ 
 | _, _, _ ,, _, .cons fs f => .cons (lam fs) (lam' f)
 end
 
+theorem proj₁_pair {f : Subst X Γ} {g : Subst X Δ} : proj₁.comp (pair f g) = f := by
+  induction Δ with
+  | nil => cases g; simp [(·++·), Append.append, concat, proj₁, pair]; rw [ide_comp]
+  | cons Δ τ ih =>
+    cases g; simp [(·++·), Append.append, concat, proj₁, pair]
+    simp [drop_comp, head, ih]
 
+theorem proj₂_pair {f : Subst X Γ} {g : Subst X Δ} : proj₂.comp (pair f g) = g := by
+  induction Δ with
+  | nil => cases g; rfl
+  | cons Δ τ ih =>
+    cases g; simp [(·++·), Append.append, concat, proj₂, pair]
+    simp [keep, comp, Tm.subst, Var.subst, head, drop_comp, ih]
+
+theorem pair_unique {f : Subst X Γ} {g : Subst X Δ} {fg : Subst X (Γ ++ Δ)} :
+  proj₁.comp fg = f → proj₂.comp fg = g → pair f g = fg := by
+  intro h₁ h₂
+  induction Δ with
+  | nil => cases g; simp [(·++·), Append.append, concat, comp, proj₁, ide_comp] at h₁; exact h₁.symm
+  | cons Δ τ ih =>
+    cases fg; cases g;
+    simp [keep, comp, drop_comp, head, Tm.subst, Var.subst] at h₁ h₂
+    simp
+    have ⟨h₂₁, h₂₂⟩ := h₂
+    constructor
+    · apply ih
+      rw [h₁]
+      rw [h₂₁]
+    · rw [h₂₂]
